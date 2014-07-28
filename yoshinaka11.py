@@ -7,10 +7,12 @@ E. Stabler  added timing, modified the new tests, etc
 M. Burks    Yoshinaka '11. 2014-07-22. Algorithm 1
 """
 #import ckyCBFG # for parsing with hypothesis grammar
-import cky     # for parsing with target grammar
+#import cky     # for parsing with target grammar
 import time    # for timing the learner
 import sys     # for stdout
 import ckyYCFG # for parsing with Yoshinaka's grammars
+from sets import Set
+import ckye
 
 def addNEsubstrings(sofar,w):  # non-empty substrings of w added to list sofar
     max=len(w)
@@ -39,100 +41,82 @@ def addContexts(sofar,w):  # contexts of substrings of w added to list sofar
 x = []
 addContexts(x,['a','b','c'])
 """
-""" this has been in-lined
-def odot(c,s): return c[0]+s+c[1]
-
-# this is not used
-def odotCartesianProduct(C,S):
-    product=[]
-    for c in C:
-        for s in S:
-            product.append(c[0]+s+c[1])
-    return product
-"""
-"""
-def FL(F,w,target,start): # from CEH'08, Def.5 on p.5
-    ok = []
-    for c in F:
-        if whatOracleSays(target,start,c[0]+w+c[1]): # EPS added start for modified cky.py
-            ok.append(c)
-    return ok
-
-def g(K,F,target,start): # from CEH'08, Def.7 on p.6
-    PL=[]
-    P=[]
-    for w in K:
-        lhs = FL(F,w,target,start) # oracle called for this
-        if len(w)==1:
-            rhs = w[0]
-            rule = (lhs,rhs)
-            if not(rule in PL): # avoid redundancy
-                PL.append(rule)
-        else:
-            lenw=len(w)
-            for i in range(lenw):
-                if 0<i and i<lenw:
-                    fl1=FL(F,w[0:i],target,start) # oracle called for this
-                    fl2=FL(F,w[i:lenw],target,start) # oracle called for this
-                    rule = (lhs,fl1,fl2)
-                    if not(rule in P): # avoid redundancy
-                        P.append(rule)
-    return(PL,P)
-"""
 
 def subsets(K,k): # returns all subsets of K with size k
     sets = []
-    if (k == 0): # should never reach this case
-        return []
-    if (len(K) < k): # should never reach this case
-        return []
-    if (len(K) == k): #subset size is equal to set size
-        return [K]
-    if (k == 1): # subsets have size 1
-        for s in K:
-            sets.append([s])
-        return sets
-    for i in range(len(K)): 
-        a = K[i]
-        Kbar = K[i+1:]
-        for s in subsets(Kbar,k-1): # I couldn't quickly think of a way to avoid recursion entirely but tried to minimize it.
-            s.append(a)
-            sets.append(s)            
+    if (k == 0): # return set with empty set, this case is meaningless and should not be reached
+        sets = [[]]
+    elif (len(K) < k): # should never reach this case
+        sets = []
+    elif (len(K) == k): #subset size is equal to set size
+        sets = [K]
+    elif (k == 1): # subsets have size 1
+        for a in K:
+            sets.append([a])
+    else:
+        for i in range(len(K)-k+1):
+            a = K[i]
+            Kbar = K[i+1:]
+            for s in subsets(Kbar,k-1): # I couldn't quickly think of a way to avoid recursion entirely but tried to minimize it.
+                s.append(a)
+                sets.append((s)) 
     return sets
 
-"""      
+def tupledSubsets(subsets): # converts subsets in list form to tuple form
+    TS = []
+    for ss in subsets:
+        SS = []
+        for string in ss:
+            SS.append(tuple(string))
+        TS.append(tuple(SS))
+    return TS
+"""
 K0 = [['0'],['1'],['2'],['3'],['4'],['5']]
-sets = subsets(K0,6)
+sets = subsets(K0,3)
+print "sets"
 print sets
 print len(sets)
+print "tupled sets"
+print tupledSubsets(sets)
 """
-
-def contextWithStrings(context,S,target,start): # returns True if the context can be combined with each string to get something in the language
-    for string in S:
+def context_odot_S(context,S,target,start): # returns True if (context odot S) is a subset of target.
+    for s in S:
+        string = list(s)
         if not(whatOracleSays(target,start,context[0]+string+context[1])):
             return False
     return True
     
-def stringWithContexts(string,F,target,start): # returns True if the string can be combined with each context to get something in the language
-    for context in F:
+def C_odot_string(C,s,target,start): # returns True if (C odot string) is a subset of target.
+    string = list(s)
+    for context in C:
         if not(whatOracleSays(target,start,context[0]+string+context[1])):
             return False
     return True
 
-def SF(S,F,target,start):
+def C_odot_S1_S2(C,S1,S2,target,start): # returns True if (SF odot S1S2) is a subset of target.
+    for w1 in S1:
+        for w2 in S2:
+            if not(C_odot_string(C,w1+w2,target,start)):
+                return False
+    return True
+    
+def SF(S,F,target,start): # Yoshinaka '11, 435
     SF = []
     for context in F:
-        if contextWithStrings(context,S,target,start):
+        if context_odot_S(context,S,target,start):
            SF.append(context)
     return SF 
 
-def V_k(K,F,k,target,start):
+def V_k(K,F,k,target,start): # Yoshinaka '11, 435
     V = []
     if (k==0):
         return V
-    for i in range(k): # i is one less than size of subset
-        for S in subsets(K,i+1):
-            V.append((S,SF(S,F,target,start)))
+    for i in range(k): # i+1 is size of subset
+        ts = tupledSubsets(subsets(K,i+1))
+        for s in ts:
+            sf = SF(s,F,target,start)
+            if not(sf == []): # if there are no contexts for a potential category, we have no reason to include it.
+                V.append((s,sf))
     return V        
         
 def alphabet(K):
@@ -144,105 +128,57 @@ def alphabet(K):
 
 # print alphabet([['0'], ['0', '1'], ['1'], ['2']])
 
-def contextWithStringSets(SF,S1,S2,target,start):
-    for w1 in S1:
-        for w2 in S2:
-            if not(stringWithContexts(w1+w2,SF,target,start)):
-                return False
-    return True
-
-def g_k(K,F,k,target,start):
-    P = []
-    PL = []
+def g_k(K,F,k,target,start): # Yoshinaka '11, 435
+    P0 = Set([])
+    P1 = Set([])
+    P2 = Set([])
+    PL = Set([])
     V = V_k(K,F,k,target,start) # V is a list of tuples (S,SF). (S is strings, SF is contexts)
-    sigma = alphabet(K)
-    sigma.append([''])
-    for (S,SF) in V:
-        for a in sigma:
-            if stringWithContexts(a,SF,target,start):
-                rule = ((S,SF),a[0])
-                if not(rule in PL): # avoid redundancy
-                    PL.append(rule)
-        for (S1,S1F) in V:
+    Sigma = alphabet(K)
+    for (S,SF) in V: # determine rules for each (S,SF)
+        for a in Sigma: # add to PL
+            if C_odot_string(SF,a,target,start):
+                newRule = (S,a[0])
+                if not(newRule in PL):
+                    PL.add(newRule)
+        if C_odot_string(SF,[],target,start): # add to P0
+            newRule = S
+            if not(newRule in P0):
+                P0.add(newRule)
+        for (S1,S1F) in V: # add to P2.
             for (S2,S2F) in V:
-               if contextWithStringSets(SF,S1,S2,target,start):
-                   rule = ((S,SF),(S1,S1F),(S2,S2F))
-                   if not(rule in P):
-                       P.append(rule)
-    return(PL,P)
-
+               if C_odot_S1_S2(SF,S1,S2,target,start):
+                   newRule = (S,S1,S2)
+                   if not(newRule in P2):
+                       P2.add(newRule)
+        if (([],[]) in SF): # add start rules to P1
+            newRule = (0,S) 
+            if not(newRule in P1):
+                P1.add(newRule)
+    return (P0,P1,P2,PL)
 
 # First conditional check
 def notDinLG(D,G):
     for s in D:
-        if not(ckyYCFG.accepts(G,s)):
+        if not(ckye.accepts(G,0,s)):
             return True
     return False
-"""
-# Second conditional check
-def reallyLongCond(SubD,K,C,F,target,start): # EPS: needs target grammar and start symbol
-    for v in SubD:
-        FLv = FL(F,v,target,start)
-        for u in K:
-            FLu = FL(F,u,target,start)
-            if ckyCBFG.subset(FLu,FLv): # EPS: enter following loop only if this succeeds!
-                for f in C:
-                    if whatOracleSays(target,start,f[0]+u+f[1]) and whatOracleSays(target,start,f[0]+v+f[1]):
-                        return True
-    return False
 
-def iil(Sample,target,start):  # target grammar is for oracle computation only
-    t0 = time.time() #for trace
-    K = []
-    D = []
-    F = [([],[])]
-    ConD = []
-    SubD = []
-    Ghat = g(K,F,target,start) # EPS - Ghat is the current hypothesis. Note: It is a CBFG, not a regular CFG.
-    for w in Sample:
-#        print #for trace
-#        traceFlag = 0 #for trace
-        print 'processing input:', w # for trace
-        sys.stdout.write(str(time.time() - t0)+' seconds\n') #for trace
-        sys.stdout.flush() #for trace
-        D.append(w)
-        addContexts(ConD,w) #EPS
-        addNEsubstrings(SubD,w) #EPS
-        # at this point, IIL constructs a large set of test sentences, but here we just use D
-        if notDinLG(D,Ghat): # EPS: w is in D, does not need to be passed
-#            if traceFlag: print #for trace
-#            print 'undergeneralization:',w # " ".join(w) #for trace
-#            traceFlag = 0 #for trace
-            K = SubD
-            F = ConD
-        elif reallyLongCond(SubD,K,ConD,F,target,start):
-#            print 'adding contexts from new test:',w # " ".join(w) #for trace
-#            traceFlag = 0 #for trace
-            F = ConD
-#        else: #for trace
-#            traceFlag = traceFlag + 1 #for trace
-#            sys.stdout.write("\r"+str(traceFlag)) #for trace
-#            sys.stdout.flush() #for trace
-        Ghat = g(K,F,target,start)
-    print
-    print time.time() - t0, "seconds" #for trace
-    return Ghat
-"""
-def y1 (sample,target,start): # Yoshinaka Algorithm 1. Primal Approach
+def kFKP (sample,target,start): # Yoshinaka '11, 437
     t0 = time.time() #for trace
     D = []
     K = []
     F = [([],[])]
     ConD = []
     SubD = []
-    k = 1 # this can be changed. I don't really know or understand the effects of changing this.
+    k = 3 # this can be changed. I don't really know or understand the effects of changing this.
     Ghat = g_k(K,F,k,target,start) # EPS - Ghat is the current hypothesis. Note: It is a CBFG, not a regular CFG.
     for w in sample:
 #        print #for trace
 #        traceFlag = 0 #for trace
         print 'processing input:', w # for trace
-#        sys.stdout.write(str(time.time() - t0)+' seconds\n') #for trace
-#        sys.stdout.flush() #for trace
+        sys.stdout.write(str(time.time() - t0)+' seconds\n') #for trace
+        sys.stdout.flush() #for trace
         D.append(w)
         addContexts(ConD,w)
         addNEsubstrings(SubD,w)
@@ -252,7 +188,7 @@ def y1 (sample,target,start): # Yoshinaka Algorithm 1. Primal Approach
 #            print 'undergeneralization:',w # " ".join(w) #for trace
 #            traceFlag = 0 #for trace
             K = SubD
-#       else: #for trace
+#        else: #for trace
 #            traceFlag = traceFlag + 1 #for trace
 #            sys.stdout.write("\r"+str(traceFlag)) #for trace
 #            sys.stdout.flush() #for trace
@@ -269,16 +205,25 @@ def whatOracleSays(target,start,s):
     if t in memoryOfOraclesClaims.keys():  # ck "memory" first
         return memoryOfOraclesClaims[t]
     else: 
-        value = cky.accepts(target,start,t)  # consult oracle for new result
+        value = ckye.accepts(target,start,t)  # consult oracle for new result
         memoryOfOraclesClaims[t] = value
         return value
 
 """ examples: uncomment one grammar # EPS
 """
-# from cfg0 import *  # target L = { aba }
-# from cfg1 import *  # target L = {0^n1^n| n>0}
-from cfg2 import *  # target L inspired by Koopman,Sportiche,Stabler ISAT chapter 3
+# from cfg0e import *  # target L = { aba }
+from cfg1e import *  # target L = {0^n1^n| n>0}
+# from cfg2e import *  # target L inspired by Koopman,Sportiche,Stabler ISAT chapter 3
 
+"""
+target0 = (['S'], [], [('S','A','SB'), ('SB','S','B')], [('A','a'), ('B','b')] )
+sample0 = [['a','b']]
+start0 = 'S'
+
+target1 = ([], [], [('S','A','B'),('S','A','SB'), ('SB','S','B')], [('A','0'), ('B','1')] )
+sample1 = [['0','1'],['0','0','1','1'],['0','0','0','1','1','1']]
+start1 = 'S'
+"""
 
 print 'checking sample with target grammar...'
 for w in sample0:
@@ -288,26 +233,27 @@ for w in sample0:
         print "Rejected by target grammar :", " ".join(w)
         sys.exit(-1) # do not continue if sample is not a subset of target!
 
-Ghat = y1(sample0,target0,start0)
+Ghat = kFKP(sample0,target0,start0)
+
 print
 for w in sample0:
-    if ckyYCFG.accepts(Ghat,w):
+    if ckye.accepts(Ghat,0,w):
         print "Accepted by learner's grammar :", " ".join(w)
     else:
         print "Rejected by learner's grammar :", " ".join(w)
 
 print 
 print "Ghat:"
-ckyYCFG.prettyGrammar(Ghat)
+ckye.prettyGrammar(Ghat)
 print
 
-print len(Ghat[0])+len(Ghat[1]),'rules in grammar'
+print len(Ghat[0])+len(Ghat[1])+len(Ghat[2])+len(Ghat[3]),'rules in grammar'
 print
 print len(memoryOfOraclesClaims),'queries to oracle'
 
 """
 testw = ['0','0','0','0','0','1','1','1','1','1']
-if ckyYCFG.accepts(Ghat,testw):
+if ckye.accepts(Ghat,0,testw):
     print "Accepted by learner's grammar :", " ".join(testw)
 else:
     print "Rejected by learner's grammar :", " ".join(testw)
